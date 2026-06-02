@@ -1,0 +1,41 @@
+name: HealthyMeal CI CD Automation Pipeline
+
+# Tell GitHub WHEN to run this pipeline automatically
+on:
+  push:
+    branches: [ "main" ]  # Triggers whenever you push changes to main
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  devops-pipeline:
+    # Use a fresh cloud server provided by GitHub running Ubuntu Linux
+    runs-on: ubuntu-latest
+
+    steps:
+    # 1. Pull the code from your repository onto the cloud server
+    - name: Checkout Code Repository
+      uses: actions/checkout@v3
+
+    # 2. Setup a secure Python environment
+    - name: Set up Python Runtime
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    # 3. Install your application dependencies and testing libraries
+    - name: Install Application Libraries
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        pip install pytest httpx
+
+    # 4. [CONTINUOUS INTEGRATION] Run your automated test suite
+    - name: Run Automated Quality Checks
+      run: |
+        pytest
+
+    # 5. [CONTINUOUS DEPLOYMENT] Verify your Docker container compiles perfectly
+    - name: Build Docker Container Image
+      run: |
+        docker build -t healthymeal-app:latest .
