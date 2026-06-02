@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HealthyMeal Client App</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background-color: #f4f7f6; }
+        .container { max-width: 650px; background: white; padding: 25px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        h2, h3 { color: #2c3e50; margin-top: 0; }
+        label { display: block; margin-top: 15px; font-weight: bold; }
+        input, select, button { width: 100%; padding: 10px; margin-top: 5px; border-radius: 4px; border: 1px solid #ccc; box-sizing: border-box; }
+        button { background-color: #2ecc71; color: white; border: none; font-size: 16px; cursor: pointer; margin-top: 20px; font-weight: bold; }
+        button:hover { background-color: #27ae60; }
+        .meal-card { background: #eef9f1; border-left: 5px solid #2ecc71; padding: 15px; margin-top: 15px; border-radius: 4px; }
+        .benefit-tag { display: block; margin-top: 6px; padding: 8px; background-color: #e8f4fd; border-left: 3px solid #3498db; color: #2c3e50; font-size: 13px; border-radius: 2px; }
+        .order-btn { background-color: #3498db; margin-top: 12px; }
+        .order-btn:hover { background-color: #2980b9; }
+        .billing-box { background: #f8f9fa; border: 1px dashed #7f8c8d; padding: 12px; margin-top: 10px; border-radius: 4px; font-family: monospace; }
+        .order-tracking-card { background: #fffdf0; border-left: 5px solid #f1c40f; padding: 15px; margin-top: 10px; border-radius: 4px; border: 1px solid #f9ebea; }
+        .status-badge { background-color: #7f8c8d; color: white; padding: 3px 8px; border-radius: 3px; font-size: 12px; font-weight: bold; }
+        .payment-badge { background-color: #2ecc71; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🥗 HealthyMeal Dashboard</h2>
+    <p>Enter your profile metrics to receive tailored diet plans.</p>
+    
+    <label for="userName">Full Name</label>
+    <input type="text" id="userName" value="Alex">
+
+    <label for="calories">Daily Target Calories</label>
+    <input type="number" id="calories" value="1500" placeholder="e.g., 850, 1500, 2100">
+
+    <label for="diet">Dietary Restriction</label>
+    <select id="diet">
+        <option value="Vegetarian">Vegetarian</option>
+        <option value="Non-Vegetarian">Non-Vegetarian</option>
+    </select>
+
+    <button onclick="getRecommendations()">Get My Healthy Diet Plan</button>
+
+    <hr style="margin-top:25px; border: 0; border-top: 1px solid #eee; margin-bottom: 20px;">
+
+    <h3>Recommended Meals for You</h3>
+    <div id="recommendationsList"><p style="color: #7f8c8d;">No recommendations generated yet.</p></div>
+</div>
+
+<div class="container" style="border-top: 4px solid #3498db;">
+    <h3>📦 Order History & Gateway Status</h3>
+    <div id="activeOrdersContainer">
+        <p style="color: #7f8c8d;">No active orders right now. Select a recommended meal above to proceed to billing.</p>
+    </div>
+</div>
+
+<script>
+    async function getRecommendations() {
+        const name = document.getElementById('userName').value;
+        const calories = parseInt(document.getElementById('calories').value);
+        const diet = document.getElementById('diet').value;
+        const listDiv = document.getElementById('recommendationsList');
+        
+        listDiv.innerHTML = "<p>Analyzing your dietary preferences...</p>";
+
+        try {
+            const response = await fetch('http://127.0.0.1:8000/api/recommendations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: 1,
+                    name: name,
+                    target_calories: calories,
+                    dietary_restriction: diet,
+                    allergies: []
+                })
+            });
+
+            if (!response.ok) throw new Error("No meals found matching your criteria.");
+            
+            const data = await response.json();
+            listDiv.innerHTML = ""; 
+
+            data.recommended_meals.forEach(meal => {
+                const mealCard = document.createElement('div');
+                mealCard.className = 'meal-card';
+                mealCard.innerHTML = `
+                    <strong>🍲 ${meal.name}</strong><br>
+                    🔥 Calories: ${meal.calories} kcal | 💵 Base Price: $${meal.price.toFixed(2)}<br>
+                    
+                    <div class="benefit-tag">💡 <strong>Why Useful:</strong> ${meal.why_useful}</div>
+                    
+                    <label style="font-size:12px; margin-top:8px; display:block;">Select Payment Mode:</label>
+                    <select id="pay-mode-${meal.meal_id}" style="padding:5px; font-size:12px; width:auto; display:inline-block; margin-top:2px;">
+                        <option value="Digital Wallet">Digital Wallet (UPI/Razorpay)</option>
+                        <option value="Credit Card">Credit Card / Debit Card</option>
+                    </select>
+                    <br>
+                    <button class="order-btn" onclick="processPaymentAndOrder(${meal.meal_id}, '${meal.name}', ${meal.price})">Pay & Checkout</button>
+                `;
+                listDiv.appendChild(mealCard);
+            });
+
+        } catch (error) {
+            listDiv.innerHTML = `<p style="color: #e74c3c;">${error.message}</p>`;
+        }
+    }
+
+    function processPaymentAndOrder(mealId, mealName, basePrice) {
+        const orderContainer = document.getElementById('activeOrdersContainer');
+        const payMode = document.getElementById(`pay-mode-${mealId}`).value;
+        
+        if(orderContainer.innerHTML.includes("No active orders")) {
+            orderContainer.innerHTML = "";
+        }
+        
+        const orderId = Math.floor(1000 + Math.random() * 9000);
+        const tax = basePrice * 0.05;
+        const deliveryFee = 2.50;
+        const totalBill = basePrice + tax + deliveryFee;
+        
+        const trackingCard = document.createElement('div');
+        trackingCard.className = 'order-tracking-card';
+        trackingCard.id = `order-${orderId}`;
+        trackingCard.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <strong>📋 ORDER #${orderId} - ${mealName}</strong>
+                <span class="status-badge" id="status-${orderId}" style="background-color: #95a5a6;">Authorizing Transaction...</span>
+            </div>
+            <div class="billing-box">
+                -----------------------------------<br>
+                Base Item Price : $${basePrice.toFixed(2)}<br>
+                GST/Tax (5%)    : $${tax.toFixed(2)}<br>
+                Delivery Charge : $${deliveryFee.toFixed(2)}<br>
+                -----------------------------------<br>
+                <strong>TOTAL PAID      : $${totalBill.toFixed(2)}</strong><br>
+                -----------------------------------
+            </div>
+            <p style="margin: 8px 0 0 0; font-size: 13px; color: #555;">
+                Payment Method: 💳 <span id="pay-badge-${orderId}">${payMode} (Pending)</span>
+            </p>
+        `;
+        
+        orderContainer.insertBefore(trackingCard, orderContainer.firstChild);
+        
+        setTimeout(() => {
+            const statusElement = document.getElementById(`status-${orderId}`);
+            if(statusElement) {
+                statusElement.innerText = "Paid & Accepted by Kitchen";
+                statusElement.style.backgroundColor = "#2ecc71";
+                const badge = document.getElementById(`pay-badge-${orderId}`);
+                badge.innerText = `${payMode} (SUCCESS)`;
+                badge.className = "payment-badge";
+            }
+        }, 2000);
+
+        setTimeout(() => {
+            const statusBadge = document.getElementById(`status-${orderId}`);
+            if(statusBadge) {
+                statusBadge.innerText = "Preparing in Kitchen";
+                statusBadge.style.backgroundColor = "#e67e22";
+            }
+        }, 5000);
+
+        setTimeout(() => {
+            const statusBadge = document.getElementById(`status-${orderId}`);
+            if(statusBadge) {
+                statusBadge.innerText = "Out for Delivery";
+                statusBadge.style.backgroundColor = "#2980b9";
+            }
+        }, 9000);
+    }
+</script>
+
+</body>
+</html>
