@@ -4,22 +4,32 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HealthyMeal Client App</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body { font-family: Arial, sans-serif; margin: 40px; background-color: #f4f7f6; }
-        .container { max-width: 650px; background: white; padding: 25px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .container { max-width: 750px; background: white; padding: 25px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
         h2, h3 { color: #2c3e50; margin-top: 0; }
         label { display: block; margin-top: 15px; font-weight: bold; }
         input, select, button { width: 100%; padding: 10px; margin-top: 5px; border-radius: 4px; border: 1px solid #ccc; box-sizing: border-box; }
         button { background-color: #2ecc71; color: white; border: none; font-size: 16px; cursor: pointer; margin-top: 20px; font-weight: bold; }
         button:hover { background-color: #27ae60; }
-        .meal-card { background: #eef9f1; border-left: 5px solid #2ecc71; padding: 15px; margin-top: 15px; border-radius: 4px; }
+        .meal-card { background: #eef9f1; border-left: 5px solid #2ecc71; padding: 15px; margin-top: 15px; border-radius: 4px; position: relative; }
+        .meal-header { display: flex; align-items: flex-start; gap: 10px; }
+        .meal-checkbox { width: 20px; height: 20px; margin-top: 3px; cursor: pointer; }
         .benefit-tag { display: block; margin-top: 6px; padding: 8px; background-color: #e8f4fd; border-left: 3px solid #3498db; color: #2c3e50; font-size: 13px; border-radius: 2px; }
         .order-btn { background-color: #3498db; margin-top: 12px; }
         .order-btn:hover { background-color: #2980b9; }
+        .analysis-btn { background-color: #9b59b6; margin-top: 15px; }
+        .analysis-btn:hover { background-color: #8e44ad; }
         .billing-box { background: #f8f9fa; border: 1px dashed #7f8c8d; padding: 12px; margin-top: 10px; border-radius: 4px; font-family: monospace; }
         .order-tracking-card { background: #fffdf0; border-left: 5px solid #f1c40f; padding: 15px; margin-top: 10px; border-radius: 4px; border: 1px solid #f9ebea; }
         .status-badge { background-color: #7f8c8d; color: white; padding: 3px 8px; border-radius: 3px; font-size: 12px; font-weight: bold; }
         .payment-badge { background-color: #2ecc71; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px; font-weight: bold; }
+        .chart-container { width: 100%; margin-top: 20px; display: flex; flex-direction: column; gap: 20px; }
+        .chart-box { background: #fafafa; border: 1px solid #ddd; padding: 15px; border-radius: 6px; }
+        .analysis-item-log { background: #fff; border: 1px solid #e2e8f0; padding: 10px; margin-bottom: 8px; border-radius: 4px; }
+        .alert-banner { display: none; background-color: #fde8e8; border-left: 5px solid #e74c3c; color: #9b1c1c; padding: 12px; margin-top: 15px; border-radius: 4px; font-weight: bold; font-size: 14px; }
+        .insight-box { background-color: #fcf3cf; border-left: 5px solid #f1c40f; padding: 12px; margin-top: 15px; border-radius: 4px; font-size: 14px; color: #7e5109; }
     </style>
 </head>
 <body>
@@ -32,7 +42,7 @@
     <input type="text" id="userName" value="Alex">
 
     <label for="calories">Daily Target Calories</label>
-    <input type="number" id="calories" value="1500" placeholder="e.g., 850, 1500, 2100">
+    <input type="number" id="calories" value="1500">
 
     <label for="diet">Dietary Restriction</label>
     <select id="diet">
@@ -45,7 +55,32 @@
     <hr style="margin-top:25px; border: 0; border-top: 1px solid #eee; margin-bottom: 20px;">
 
     <h3>Recommended Meals for You</h3>
+    <p style="font-size: 13px; color: #7f8c8d; margin-top: -10px;">Check the boxes next to the dishes you plan to eat today, then click the analyze button below.</p>
+    
+    <div id="calorieAlertBanner" class="alert-banner">⚠️ LIMIT EXCEEDED! Your active meal selections exceed your allowed daily caloric target budget. Checkout has been locked.</div>
+    
     <div id="recommendationsList"><p style="color: #7f8c8d;">No recommendations generated yet.</p></div>
+    
+    <button id="analysisToggleBtn" class="analysis-btn" onclick="generateDietAnalysis()" style="display:none;">📊 Analyze Selected Diet Plan</button>
+</div>
+
+<div id="analysisPanel" class="container" style="border-top: 4px solid #9b59b6; display: none;">
+    <h3>📈 Selected Dishes & Nutrient Properties</h3>
+    
+    <div id="selectedDishesBreakdown" style="margin-bottom: 20px;"></div>
+
+    <div class="chart-container">
+        <div class="chart-box">
+            <h4 style="margin:0 0 10px 0; color:#555; text-align:center;">Daily Calorie Budget vs. Selected Dishes Total</h4>
+            <canvas id="calorieChart" height="150"></canvas>
+        </div>
+        <div class="chart-box">
+            <h4 style="margin:0 0 10px 0; color:#555; text-align:center;">Exact Macro-Nutrient Composition of Selection</h4>
+            <canvas id="macroChart" height="200"></canvas>
+        </div>
+    </div>
+    
+    <div id="macroInsightContainer" class="insight-box"></div>
 </div>
 
 <div class="container" style="border-top: 4px solid #3498db;">
@@ -56,6 +91,10 @@
 </div>
 
 <script>
+    let currentRecommendedMeals = [];
+    let calorieChartInstance = null;
+    let macroChartInstance = null;
+
     async function getRecommendations() {
         const name = document.getElementById('userName').value;
         const calories = parseInt(document.getElementById('calories').value);
@@ -63,6 +102,9 @@
         const listDiv = document.getElementById('recommendationsList');
         
         listDiv.innerHTML = "<p>Analyzing your dietary preferences...</p>";
+        document.getElementById('analysisToggleBtn').style.display = "none";
+        document.getElementById('analysisPanel').style.display = "none";
+        document.getElementById('calorieAlertBanner').style.display = "none";
 
         try {
             const response = await fetch('http://127.0.0.1:8000/api/recommendations', {
@@ -81,14 +123,19 @@
             
             const data = await response.json();
             listDiv.innerHTML = ""; 
+            currentRecommendedMeals = data.recommended_meals;
 
-            data.recommended_meals.forEach(meal => {
+            currentRecommendedMeals.forEach(meal => {
                 const mealCard = document.createElement('div');
                 mealCard.className = 'meal-card';
                 mealCard.innerHTML = `
-                    <strong>🍲 ${meal.name}</strong><br>
-                    🔥 Calories: ${meal.calories} kcal | 💵 Base Price: $${meal.price.toFixed(2)}<br>
-                    
+                    <div class="meal-header">
+                        <input type="checkbox" id="chk-${meal.meal_id}" class="meal-checkbox" checked onchange="checkCalorieLimits()">
+                        <div>
+                            <strong>🍲 ${meal.name}</strong><br>
+                            🔥 Calories: ${meal.calories} kcal | 🧬 P: ${meal.protein}g, C: ${meal.carbs}g, F: ${meal.fat}g | 💵 $${meal.price.toFixed(2)}
+                        </div>
+                    </div>
                     <div class="benefit-tag">💡 <strong>Why Useful:</strong> ${meal.why_useful}</div>
                     
                     <label style="font-size:12px; margin-top:8px; display:block;">Select Payment Mode:</label>
@@ -96,18 +143,156 @@
                         <option value="Digital Wallet">Digital Wallet (UPI/Razorpay)</option>
                         <option value="Credit Card">Credit Card / Debit Card</option>
                     </select>
-                    <br>
                     <button class="order-btn" onclick="processPaymentAndOrder(${meal.meal_id}, '${meal.name}', ${meal.price})">Pay & Checkout</button>
                 `;
                 listDiv.appendChild(mealCard);
             });
+
+            document.getElementById('analysisToggleBtn').style.display = "block";
+            
+            // FIXED: Added a tiny timeout delay so the checkboxes exist in the UI before calculating limits!
+            setTimeout(() => {
+                checkCalorieLimits();
+            }, 100);
 
         } catch (error) {
             listDiv.innerHTML = `<p style="color: #e74c3c;">${error.message}</p>`;
         }
     }
 
+    function calculateCurrentSelectedCalories() {
+        let total = 0;
+        currentRecommendedMeals.forEach(meal => {
+            const box = document.getElementById(`chk-${meal.meal_id}`);
+            if (box && box.checked) {
+                total += meal.calories;
+            }
+        });
+        return total;
+    }
+
+    function checkCalorieLimits() {
+        const targetCalories = parseInt(document.getElementById('calories').value);
+        const currentSelectedTotal = calculateCurrentSelectedCalories();
+        const alertBanner = document.getElementById('calorieAlertBanner');
+        
+        if (currentSelectedTotal > targetCalories) {
+            alertBanner.style.display = "block";
+        } else {
+            alertBanner.style.display = "none";
+        }
+
+        if(document.getElementById('analysisPanel').style.display === "block") {
+            generateDietAnalysis();
+        }
+    }
+
+    function generateDietAnalysis() {
+        const targetCalories = parseInt(document.getElementById('calories').value);
+        const analysisPanel = document.getElementById('analysisPanel');
+        const breakdownDiv = document.getElementById('selectedDishesBreakdown');
+        const insightDiv = document.getElementById('macroInsightContainer');
+        
+        let selectedMeals = currentRecommendedMeals.filter(meal => {
+            const box = document.getElementById(`chk-${meal.meal_id}`);
+            return box && box.checked;
+        });
+
+        if (selectedMeals.length === 0) {
+            alert("Please select at least one dish checkbox to run the analysis model.");
+            return;
+        }
+
+        analysisPanel.style.display = "block";
+        
+        let totalCalories = 0;
+        let totalProtein = 0;
+        let totalCarbs = 0;
+        let totalFat = 0;
+        let breakdownHTML = `<h4>Selected Menu Properties & Usefulness Breakdown:</h4>`;
+
+        selectedMeals.forEach(meal => {
+            totalCalories += meal.calories;
+            totalProtein += meal.protein;
+            totalCarbs += meal.carbs;
+            totalFat += meal.fat;
+
+            breakdownHTML += `
+                <div class="analysis-item-log">
+                    <strong>🥗 ${meal.name}</strong> (${meal.calories} kcal)<br>
+                    <span style="font-size:13px; color:#555;">🧬 <strong>Macros:</strong> Protein: ${meal.protein}g | Carbs: ${meal.carbs}g | Fats: ${meal.fat}g</span><br>
+                    <span style="font-size:13px; color:#2980b9;">🎯 <strong>Clinical Purpose:</strong> ${meal.why_useful}</span>
+                </div>
+            `;
+        });
+
+        breakdownDiv.innerHTML = breakdownHTML;
+
+        // FIXED: DYNAMIC NUTRIENT TAKEN MORE (PIE CHART METRIC ANALYSIS)
+        let highestNutrientName = "";
+        let highestNutrientExplanation = "";
+        
+        if (totalCarbs >= totalProtein && totalCarbs >= totalFat) {
+            highestNutrientName = "Carbohydrates";
+            highestNutrientExplanation = "This means your current configuration functions primarily as a high-energy fueling deck, which is optimal for metabolic baseline performance and stamina, but ensure it sits safely inside your target boundary limits to prevent conversions into fat storage.";
+        } else if (totalProtein >= totalCarbs && totalProtein >= totalFat) {
+            highestNutrientName = "Proteins";
+            highestNutrientExplanation = "This reflects a highly structural, lean tissue recovery profile. It supports excellent cellular synthesis, blood sugar stabilization, and lean muscle restoration, while maintaining strong satiety across the day.";
+        } else {
+            highestNutrientName = "Healthy Fats";
+            highestNutrientExplanation = "This means your selection leans towards sustained slow-burning energy lipids. It provides prolonged energy suspension and hormone regulation support, but requires strict oversight due to the dense caloric weight per gram.";
+        }
+
+        insightDiv.innerHTML = `
+            <strong>📊 Pie Chart Analytical Inference:</strong><br>
+            Your selection is richest in <u><strong>${highestNutrientName}</strong></u> (Totaling: ${highestNutrientName === 'Carbohydrates' ? totalCarbs : highestNutrientName === 'Proteins' ? totalProtein : totalFat} grams). ${highestNutrientExplanation}
+        `;
+
+        if(calorieChartInstance) calorieChartInstance.destroy();
+        if(macroChartInstance) macroChartInstance.destroy();
+
+        const ctxCal = document.getElementById('calorieChart').getContext('2d');
+        calorieChartInstance = new Chart(ctxCal, {
+            type: 'bar',
+            data: {
+                labels: ['Your Daily Target Limit', 'Your Selections Total'],
+                datasets: [{
+                    label: 'Energy Load (kcal)',
+                    data: [targetCalories, totalCalories],
+                    backgroundColor: [
+                        '#2ecc71', 
+                        totalCalories > targetCalories ? '#e74c3c' : '#3498db'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: { indexAxis: 'y', responsive: true, scales: { x: { beginAtZero: true } } }
+        });
+
+        const ctxMacro = document.getElementById('macroChart').getContext('2d');
+        macroChartInstance = new Chart(ctxMacro, {
+            type: 'doughnut',
+            data: {
+                labels: [`Carbohydrates (${totalCarbs}g)`, `Proteins (${totalProtein}g)`, `Healthy Fats (${totalFat}g)`],
+                datasets: [{
+                    data: [totalCarbs, totalProtein, totalFat],
+                    backgroundColor: ['#f1c40f', '#e74c3c', '#9b59b6']
+                }]
+            },
+            options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+        });
+    }
+
     function processPaymentAndOrder(mealId, mealName, basePrice) {
+        const targetCalories = parseInt(document.getElementById('calories').value);
+        const currentSelectedTotal = calculateCurrentSelectedCalories();
+        
+        // INTERCEPTOR GATEWAY CHECK - ABSOLUTE SECURE BLOCKING
+        if (currentSelectedTotal > targetCalories) {
+            alert(`❌ LIMIT EXCEEDED!\n\nYour active meal selections total ${currentSelectedTotal} kcal, which exceeds your allowed profile limit of ${targetCalories} kcal.\n\nCheckout has been securely locked to protect your dietary goals. Please uncheck some items.`);
+            return; 
+        }
+
         const orderContainer = document.getElementById('activeOrdersContainer');
         const payMode = document.getElementById(`pay-mode-${mealId}`).value;
         
